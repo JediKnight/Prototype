@@ -15,12 +15,12 @@ void usage()
 int main(int argc, char **argv)
 {
   /* server */
-  struct sockaddr_in addr;
+  struct sockaddr_in *addr;
   int sockfd, backlog = SOMAXCONN, addr_len;
   char buf[255], opt = 1;
 
   /* client */
-  struct sockaddr_in c_addr;
+  struct sockaddr_in *c_addr;
   int c_sockfd, c_addr_len;
 
   if(argc != 3)
@@ -37,18 +37,30 @@ int main(int argc, char **argv)
       exit(EXIT_FAILURE);
     }
 
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = inet_addr(argv[1]);
-  addr.sin_port = atoi(argv[2]);
+  addr->sin_family = AF_INET;
+  addr->sin_addr.s_addr = inet_addr(argv[1]);
+  addr->sin_port = atoi(argv[2]);
   addr_len = sizeof(addr);
 
-  setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt));
+  if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0)
+    {
+      perror("setsockopt()");
+      exit(EXIT_FAILURE);
+    }
 
-  bind(sockfd, (struct sockaddr *) &addr, addr_len);
+  if(bind(sockfd, (struct sockaddr *)addr, (socklen_t)&addr_len) < 0)
+    {
+      perror("bind()");
+      exit(EXIT_FAILURE);
+    }
 
-  listen(sockfd, backlog);
+  if(listen(sockfd, backlog) < 0)
+    {
+      perror("listen()");
+      exit(EXIT_FAILURE);
+    }
 
-  if((c_sockfd = accept(sockfd, (struct sockaddr *)&c_addr, &c_addr_len)) < 0)
+  if((c_sockfd = accept(sockfd, (struct sockaddr *)c_addr, (socklen_t)&c_addr_len)) < 0)
     {
       perror("accept()");
       exit(EXIT_FAILURE);
@@ -57,6 +69,7 @@ int main(int argc, char **argv)
   while(1)
     {
       char *p;
+
       memset(buf, '\0', sizeof(buf) / sizeof(buf[0]));
       read(c_sockfd, buf, sizeof(buf) / sizeof(buf[0]));
       if((p = strchr(buf, '\n')) != NULL)

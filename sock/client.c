@@ -17,7 +17,6 @@ int main(int argc, char **argv)
   int sockfd, len;
   struct sockaddr_in addr;
   char buf[255];
-  char s[255], r[255], opt = 1;
 
   if(argc != 3)
     usage();
@@ -32,8 +31,6 @@ int main(int argc, char **argv)
   addr.sin_addr.s_addr = inet_addr(argv[1]);
   addr.sin_port = atoi(argv[2]);
   len = sizeof(addr);
-
-  setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt));
 
   if(connect(sockfd, (struct sockaddr *)&addr, len) == -1)
     {
