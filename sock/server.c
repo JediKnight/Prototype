@@ -62,21 +62,20 @@ void reply(void *fd)
       else
 	{
 	  char *p;
-	  if((p = strchr(buf, '\n')) != NULL)
+	  if((p = strchr(buf, '\n') -1) != NULL)
 	    *p = '\0';
 
 	  if(strcmp(buf, "exit") == 0)
 	    break;
 
 #ifdef _SEMAPHORE_
-	  printf("my semid:%d\n", semid);
-	  semLockToggle(semid, 0, UNLOCK);
-	  semLockToggle(semid, 1, LOCK);
+	  semLockToggle(semid, 1, UNLOCK);
+	  semLockToggle(semid, 0, LOCK);
 #endif
 	  write(conn_fd, buf, rsize);
 #ifdef _SEMAPHORE_
-	  semLockToggle(semid, 0, LOCK);
-	  semLockToggle(semid, 1, UNLOCK);
+	  semLockToggle(semid, 1, LOCK);
+	  semLockToggle(semid, 0, UNLOCK);
 #endif
 	}
     }
@@ -96,19 +95,16 @@ int main(int argc, char **argv)
   struct sockaddr_in server_addr, client_addr;
   int server_addrlen, client_addrlen;
   pthread_t worker;
-  char opt = 1;
+  int opt;
 
 #ifdef _SEMAPHORE_
   union semun{ int val; struct semid_ds *buf; unsigned short *array; } c_arg;
   unsigned short vals[2] = { 0, 0 };
-#elif _FIFO_
-  int fifodes;
 #endif
  
   if(argc != 3)
     usage();
 
-  puts("initialization ...");
   bzero((char *)&server_addr, sizeof(server_addr));
 
 #ifdef _SEMAPHORE_
@@ -126,7 +122,6 @@ int main(int argc, char **argv)
     }
 #endif
 
-  puts("create socket ...");
   /**
    * int
    * socket(int domain, int type, int protocol);
@@ -137,24 +132,22 @@ int main(int argc, char **argv)
       exit(EXIT_FAILURE);
     }
 
-  printf("server data setting IP:%s, port:%s ...\n", argv[1], argv[2]);
   server_addr.sin_family = AF_INET;
   server_addr.sin_addr.s_addr = inet_addr(argv[1]);
   server_addr.sin_port = htons(atoi(argv[2]));
   server_addrlen = sizeof(server_addr);
 
-  puts("setsockopt ...");
   /**
    * int
    * setsockopt(int socket, int level, int option_name, const void *option_value, socklen_t option_len); 
    */
-  if(setsockopt(server_sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, (socklen_t)sizeof(opt)) == 0)
+  opt = 1;
+  if(setsockopt(server_sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, (socklen_t)sizeof(opt)) < 0)
     {
       perror("setsockopt()");
       exit(EXIT_FAILURE);
     }
 
-  puts("bind ...");
   /**
    * int
    * bind(int socket, const struct sockaddr *address, socklen_t address_len); 
@@ -165,7 +158,6 @@ int main(int argc, char **argv)
       exit(EXIT_FAILURE);
     }
 
-  puts("listen ...");
   /**
    * int
    * listen(int socket, int backlog);
@@ -178,7 +170,6 @@ int main(int argc, char **argv)
 
   while (1)
     {
-      puts("accept ...");
       /**
        * int
        * accept(int socket, struct sockaddr *restrict address, socklen_t *restrict address_len);
@@ -189,7 +180,6 @@ int main(int argc, char **argv)
 	  exit(EXIT_FAILURE);
 	}
 
-      puts("create new thread ...");
       /**
        * int
        * pthread_create(pthread_t *restrict thread, const pthread_attr_t *restrict attr, void *(*start_routine)(void *), void *restrict arg);
@@ -200,7 +190,6 @@ int main(int argc, char **argv)
 	  exit(EXIT_FAILURE);
 	}
       
-      puts("thread detach ...");
       /**
        * int
        * pthread_detach(pthread_t thread);
@@ -212,7 +201,6 @@ int main(int argc, char **argv)
 	}
     }
 
-  puts("server exit");
   if(close(server_sockfd) < 0)
     {
       perror("close()");
