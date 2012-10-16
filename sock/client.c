@@ -1,8 +1,9 @@
-#include <errno.h>		/*  */
-#include <stdio.h>		/*  */
-#include <stdlib.h>		/*  */
+#include <errno.h>		/* perror() */
+#include <arpa/inet.h>		/* inet_addr() */
+#include <stdio.h>		/* fprintf() */
+#include <stdlib.h>		/* exit() */
 #include <string.h>		/* memset() */
-#include <sys/socket.h>		/*  */
+#include <sys/socket.h>		/* socket(), bind(), connect() */
 #include <netinet/in.h>		/*  */
 #include <unistd.h>		/*  */
 
@@ -21,7 +22,7 @@ int main(int argc, char **argv)
   if(argc != 3)
     usage();
 
-  if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+  if((sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
     {
       perror("socket()");
       exit(EXIT_FAILURE);
@@ -32,7 +33,11 @@ int main(int argc, char **argv)
   addr.sin_port = atoi(argv[2]);
   len = sizeof(addr);
 
-  if(connect(sockfd, (struct sockaddr *)&addr, len) == -1)
+  /**
+   * int
+   * connect(int socket, const struct sockaddr *address, socklen_t address_len);
+   */
+  if(connect(sockfd, (const struct sockaddr *)&addr, len) < 0)
     {
       perror("connect()");
       exit(EXIT_FAILURE);
