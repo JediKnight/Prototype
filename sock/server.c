@@ -5,8 +5,11 @@
 #include <stdio.h>		/* fprintf() */
 #include <stdlib.h>		/* exit() */
 #include <string.h>		/* memset() */
+#include <sys/fcntl.h>		/* open() */
 #include <sys/sem.h>		/* semget() */
 #include <sys/socket.h>		/* socket(), bind(), listen(), recv() */
+#include <sys/stat.h>		/* mkfifo() */
+#include <time.h>		/*  */
 #include <unistd.h>		/* read(), write() */
 #include "mystring.h"
 
@@ -44,39 +47,69 @@ void semLockToggle(int semid, int semnum, int op)
 
 void reply(void *fd)
 {
-  int conn_fd = *((int *)fd), rsize;
+  int conn_fd = *((int *)fd), rsize, fifodes;
   char buf[BUFSIZ];
+  fd_set fds, readfds;
+  struct timeval tv;
+  int maxfd;
+
+  fifodes = open("my_fifo",O_WRONLY);
+
+  tv.tv_sec = 0;
+  tv.tv_usec = 0;
+
+  FD_ZERO(&readfds);
+  FD_SET(conn_fd, &readfds);
+  FD_SET(fifodes, &readfds);
+
+  maxfd = conn_fd;
+  if(conn_fd < fifodes)
+    maxfd = fifodes;
 
   while(1)
     {
-      if((rsize = recv(conn_fd, buf, BUFSIZ, 0)) < 0)
-	{
-	  perror("recv()");
-	  exit(EXIT_FAILURE);
-	}
+      memcpy(&fds, &readfds, sizeof(fd_set));
+      select(maxfd +1, &fds, NULL, NULL, &tv);
 
-      else if(rsize == 0)
-	{
-	  break;
-	}
-
-      else
-	{
-	  printf("%s\n", buf);
-	  goodbyeReturn(buf);
-	  if(strcmp(buf, "exit") == 0)
+    if(FD_ISSET(conn_fd, &fds))
+      {
+	puts("recv");
+	if((rsize = recv(conn_fd, buf, BUFSIZ, 0)) < 0)
+	  {
+	    perror("recv()");
+	    exit(EXIT_FAILURE);
+	  }
+	
+	else if(rsize == 0)
+	  {
 	    break;
+	  }
+	
+	else
+	  {
+	    printf("%s\n", buf);
+	    goodbyeReturn(buf);
+	    if(strcmp(buf, "exit") == 0)
+	      break;
+	    
+#ifdef _SEMAPHORE_
+	    semLockToggle(semid, 1, UNLOCK);
+	    semLockToggle(semid, 0, LOCK);
+#endif
+	    //	    write(conn_fd, buf, rsize);
+	    write(fifodes, buf, rsize);
+#ifdef _SEMAPHORE_
+	    semLockToggle(semid, 1, LOCK);
+	    semLockToggle(semid, 0, UNLOCK);
+#endif
+	  }
+      }
 
-#ifdef _SEMAPHORE_
-	  semLockToggle(semid, 1, UNLOCK);
-	  semLockToggle(semid, 0, LOCK);
-#endif
-	  write(conn_fd, buf, rsize);
-#ifdef _SEMAPHORE_
-	  semLockToggle(semid, 1, LOCK);
-	  semLockToggle(semid, 0, UNLOCK);
-#endif
-	}
+    else if(FD_ISSET(fifodes, &fds))
+      {
+	read(fifodes,buf,BUFSIZ);
+	printf("ponyo:%s\n", buf);
+      }
     }
   
   if(close(conn_fd) < 0)
@@ -105,6 +138,7 @@ int main(int argc, char **argv)
     usage();
 
   bzero((char *)&server_addr, sizeof(server_addr));
+  mkfifo("my_fifo",0777);
 
 #ifdef _SEMAPHORE_
   if((semid = semget(IPC_PRIVATE, SOMAXCONN, 0600)) < 0)
