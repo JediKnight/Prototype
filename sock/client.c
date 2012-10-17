@@ -6,6 +6,14 @@
 #include <sys/socket.h>		/* socket(), bind(), connect() */
 #include <netinet/in.h>		/*  */
 #include <unistd.h>		/*  */
+#include "mystring.h"
+
+#undef BUFSIZ
+#define BUFSIZ 255
+#undef UNAME
+#define UNAME getenv("USER")
+#undef UNAME_LEN
+#define UNAME_LEN strlen(UNAME)
 
 void usage()
 {
@@ -17,11 +25,14 @@ int main(int argc, char **argv)
 {
   int sockfd, len;
   struct sockaddr_in addr;
-  char buf[255];
 
   if(argc != 3)
     usage();
 
+  /**
+   *
+   *
+   */
   if((sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
     {
       perror("socket()");
@@ -30,7 +41,7 @@ int main(int argc, char **argv)
 
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = inet_addr(argv[1]);
-  addr.sin_port = atoi(argv[2]);
+  addr.sin_port = htons(atoi(argv[2]));
   len = sizeof(addr);
 
   /**
@@ -45,17 +56,18 @@ int main(int argc, char **argv)
 
   for(;;)
     {
-      char *p;
-      int blen;
-      memset(buf, '\0', sizeof(buf) / sizeof(buf[0]));
-      fgets(buf, sizeof(buf) / sizeof(buf[0]), stdin);
-      if((p = strchr(buf, '\n')) != NULL)
-	{ *p = '\0'; } 
-      blen = strlen(buf);
-      write(sockfd, buf, blen);
-      memset(buf, '\0', sizeof(buf) / sizeof(buf[0]));
-      read(sockfd, buf, blen);
-      fprintf(stdout, "%s\n", buf);
+      char buf[BUFSIZ], mesg[BUFSIZ + UNAME_LEN];
+      memset(buf, '\0', BUFSIZ);
+      memset(mesg, '\0', BUFSIZ + UNAME_LEN);
+
+      fgets(buf, BUFSIZ, stdin);
+      goodbyeReturn(buf);
+      sprintf(mesg, "%s> %s\n", UNAME, buf);
+      write(sockfd, mesg, strlen(mesg));
+
+      memset(mesg, '\0', BUFSIZ + UNAME_LEN);
+      read(sockfd, mesg, BUFSIZ + UNAME_LEN);
+      fprintf(stdout, "%s\n", mesg);
     }
 
   close(sockfd);

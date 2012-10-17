@@ -8,9 +8,10 @@
 #include <sys/sem.h>		/* semget() */
 #include <sys/socket.h>		/* socket(), bind(), listen(), recv() */
 #include <unistd.h>		/* read(), write() */
+#include "mystring.h"
 
 #undef BUFSIZ
-#define BUFSIZ 255
+#define BUFSIZ 255 * 2
 
 #ifdef _SEMAPHORE_
 #define LOCK -1
@@ -61,10 +62,8 @@ void reply(void *fd)
 
       else
 	{
-	  char *p;
-	  if((p = strchr(buf, '\n') -1) != NULL)
-	    *p = '\0';
-
+	  printf("%s\n", buf);
+	  goodbyeReturn(buf);
 	  if(strcmp(buf, "exit") == 0)
 	    break;
 
@@ -122,6 +121,7 @@ int main(int argc, char **argv)
     }
 #endif
 
+  puts("socket");
   /**
    * int
    * socket(int domain, int type, int protocol);
@@ -137,6 +137,7 @@ int main(int argc, char **argv)
   server_addr.sin_port = htons(atoi(argv[2]));
   server_addrlen = sizeof(server_addr);
 
+  puts("setsockopt");
   /**
    * int
    * setsockopt(int socket, int level, int option_name, const void *option_value, socklen_t option_len); 
@@ -148,16 +149,18 @@ int main(int argc, char **argv)
       exit(EXIT_FAILURE);
     }
 
+  puts("bind");
   /**
    * int
    * bind(int socket, const struct sockaddr *address, socklen_t address_len); 
    */
-  if(bind(server_sockfd, (const struct socksaddr *)&server_addr, (socklen_t)server_addrlen) < 0)
+  if(bind(server_sockfd, (const struct sockaddr *)&server_addr, (socklen_t)server_addrlen) < 0)
     {
       perror("bind()");
       exit(EXIT_FAILURE);
     }
 
+  puts("listen");
   /**
    * int
    * listen(int socket, int backlog);
@@ -168,18 +171,20 @@ int main(int argc, char **argv)
       exit(EXIT_FAILURE);
     }  
 
-  while (1)
+  while(1)
     {
+      puts("accept");
       /**
        * int
        * accept(int socket, struct sockaddr *restrict address, socklen_t *restrict address_len);
        */
-      if((client_sockfd = accept(server_sockfd, (struct socksaddr *)&client_addr, (socklen_t *)&client_addrlen)) < 0)
+      if((client_sockfd = accept(server_sockfd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addrlen)) < 0)
 	{
 	  perror("accept()");
 	  exit(EXIT_FAILURE);
 	}
 
+      puts("pthread_create");
       /**
        * int
        * pthread_create(pthread_t *restrict thread, const pthread_attr_t *restrict attr, void *(*start_routine)(void *), void *restrict arg);
@@ -190,6 +195,7 @@ int main(int argc, char **argv)
 	  exit(EXIT_FAILURE);
 	}
       
+      puts("pthread_detach");
       /**
        * int
        * pthread_detach(pthread_t thread);
