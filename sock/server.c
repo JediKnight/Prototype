@@ -81,11 +81,31 @@ int serverSocket()
   return sockfd;
 }
 
+int setBlocking(int *sockfd)
+{
+  int flags;
+  if((flags = fcntl(*sockfd, F_GETFL, 0)) < 0)
+    { perror("fcntl()"); return -1; };
+  flags = flags & ~(flags & O_NONBLOCK);
+  if(fcntl(*sockfd, F_SETFL, flags) < 0)
+    { perror("fcntl()"); return -1; };
+  return 0;
+
+}
+
+int setNonBlocking(int *sockfd)
+{
+  int flags;
+  if((flags = fcntl(*sockfd, F_GETFL, 0)) < 0)
+    { perror("fcntl()"); return -1; };
+  if(fcntl(*sockfd, F_SETFL, O_NONBLOCK|flags) < 0)
+    { perror("fcntl()"); return -1; };
+  return 0;
+}
+
 int main(int argc, char **argv)
 {
-  int listen_sockfd, child_sockfd;
-  struct sockaddr_in addr;
-  int len;
+  int listen_sockfd;
   pthread_t worker;
   struct timeval timeout;
 
@@ -95,11 +115,14 @@ int main(int argc, char **argv)
   timeout.tv_sec = 0;
   timeout.tv_usec = 0;
 
-  if((listen_sockfd = serverSocket()) < 0)
-    { fprintf(stderr, "socket nannya\n"); exit(EXIT_FAILURE); }
+  if(setBlocking(&listen_sockfd) < 0)
+    { fprintf(stderr, "setBlocking()\n"); exit(EXIT_FAILURE); }
 
-  if(fcntl(listen_sockfd, F_SETFL, O_NONBLOCK) < 0)
-    { perror("fcntl()"); exit(EXIT_FAILURE); };
+  if((listen_sockfd = serverSocket()) < 0)
+    { fprintf(stderr, "serverSocket()\n"); exit(EXIT_FAILURE); }
+
+/*   if(setNonBlocking(&listen_sockfd) < 0) */
+/*     { fprintf(stderr, "setNonBlocking()\n"); exit(EXIT_FAILURE); } */
 
   if(listen(listen_sockfd, SOMAXCONN) < 0)
     { perror("listen()"); exit(EXIT_FAILURE); }
@@ -108,11 +131,15 @@ int main(int argc, char **argv)
     {
       int n;
       char buf[BUFSIZ];
+      int child_sockfd;
+      struct sockaddr_in addr;
+      int len;
+
       if((n = select(fildes[IN] +1, NULL, NULL, NULL, &timeout)) < 0)
       	{ perror("select()"); exit(EXIT_FAILURE); }
 
       else if(n == 0)
-      	{ puts("timeout"); }
+	{ puts("timeout"); }
 
       else
       	{
@@ -128,7 +155,6 @@ int main(int argc, char **argv)
       else
 	{
 	  puts("accept");
-	  sleep(3);
 	  if(pthread_create(&worker, NULL, (void *)reply, (void *)&child_sockfd) != 0)
 	    { perror("pthread_create()"); exit(EXIT_FAILURE); }
 	  
