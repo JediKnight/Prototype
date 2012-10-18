@@ -16,16 +16,16 @@ int main(void)
 
   mkfifo("my_fifo",0777);
   fifodes = open("my_fifo",O_RDONLY);
-  kill(0, SIGSTOP);
+  printf("file open");
   read(fifodes,buffer,256);
-  if(initscr() == NULL)
-    {
-      perror("initscr()");
-      exit(EXIT_FAILURE);
-    }
-  printw("Message: %s",buffer);
-  getch();
-  endwin();
+  /* if(initscr() == NULL) */
+  /*   { */
+  /*     perror("initscr()"); */
+  /*     exit(EXIT_FAILURE); */
+  /*   } */
+  /* printw("Message: %s",buffer); */
+  /* getch(); */
+  /* endwin(); */
 
   close(fifodes);
 

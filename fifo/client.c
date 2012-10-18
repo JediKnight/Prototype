@@ -13,7 +13,7 @@ int main(void)
 
   /*  FIFO ファイルをオープンにする */
   fifodes = open("my_fifo",O_WRONLY);
-
+  printf("file open");
   fgets(buffer,256,stdin);
 
   /* データを送信する */
