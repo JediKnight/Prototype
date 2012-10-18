@@ -23,7 +23,9 @@
 #undef PORTNM
 #define PORTNM 19860
 
-enum { IN = 0, OUT };
+#define maxfds(a, b) (a > b) ? a : b
+
+enum { R = 0, W };
 
 int fildes[2];
 fd_set fds;
@@ -39,30 +41,30 @@ void reply(void *fd)
 
   while(1)
     {
-      if(select(fildes[OUT], &fds, NULL, NULL, &timeout) > 0)
+      if(select(maxfds(fildes[R], fildes[W]) +1, NULL, &fds, NULL, &timeout) == -1)
+	{ perror("select"); exit(EXIT_FAILURE); };
+
+      if(FD_ISSET(fildes[W], &fds))
 	{
-	  read(fildes[OUT], buf, BUFSIZ);
+	  puts("parent get");
+	  read(fildes[R], buf, BUFSIZ);
 	  write(conn_fd, buf, BUFSIZ);
 	}
 
+      if((rsize = recv(conn_fd, buf, BUFSIZ, 0)) < 0)
+	{} //	{ perror("recv()"); exit(EXIT_FAILURE); }
+      
+      else if(rsize == 0)
+	{ break; }
+      
       else
 	{
-
-	  if((rsize = recv(conn_fd, buf, BUFSIZ, 0)) < 0)
-	    {} //	{ perror("recv()"); exit(EXIT_FAILURE); }
-	  
-	  else if(rsize == 0)
+	  //	  goodbyeReturn(buf);
+	  if(strcmp(buf, "exit") == 0)
 	    { break; }
-	  
-	  else
-	    {
-	      goodbyeReturn(buf);
-	      if(strcmp(buf, "exit") == 0)
-		{ break; }
-	      
-	      write(conn_fd, buf, rsize);
-	      write(fildes[OUT], buf, rsize);
-	    }
+	  printf("sockfd:%d> %s\n", conn_fd, buf);
+	  //	  write(fildes[W], buf, rsize);
+	  write(conn_fd +1, buf, rsize);
 	}
     }
   
@@ -100,10 +102,10 @@ int setBlocking(int *sockfd)
 {
   int flags;
   if((flags = fcntl(*sockfd, F_GETFL, 0)) < 0)
-    { perror("fcntl()"); return -1; };
+    { perror("fcntl() F_GETFL"); return -1; };
   flags = flags & ~(flags & O_NONBLOCK);
   if(fcntl(*sockfd, F_SETFL, flags) < 0)
-    { perror("fcntl()"); return -1; };
+    { perror("fcntl() F_SETFL"); return -1; };
   return 0;
 
 }
@@ -112,9 +114,9 @@ int setNonBlocking(int *sockfd)
 {
   int flags;
   if((flags = fcntl(*sockfd, F_GETFL, 0)) < 0)
-    { perror("fcntl()"); return -1; };
+    { perror("fcntl() F_GETFL"); return -1; };
   if(fcntl(*sockfd, F_SETFL, O_NONBLOCK|flags) < 0)
-    { perror("fcntl()"); return -1; };
+    { perror("fcntl() F_SETFL"); return -1; };
   return 0;
 }
 
@@ -126,7 +128,8 @@ int main(int argc, char **argv)
   int listen_sockfd, child_sockfd, len;
 
   FD_ZERO(&fds);
-  FD_SET(fildes[IN], &fds);
+  FD_SET(fildes[R], &fds);
+  FD_SET(fildes[W], &fds);
 
   if (pipe(fildes) < 0) 
     { perror("pipe()"); exit(EXIT_FAILURE); }
@@ -134,8 +137,8 @@ int main(int argc, char **argv)
   timeout.tv_sec = 0;
   timeout.tv_usec = 0;
 
-  if(setBlocking(&listen_sockfd) < 0)
-    { fprintf(stderr, "setBlocking()\n"); exit(EXIT_FAILURE); }
+/*   if(setBlocking(&listen_sockfd) < 0) */
+/*     { fprintf(stderr, "setBlocking()\n"); exit(EXIT_FAILURE); } */
 
   if((listen_sockfd = serverSocket()) < 0)
     { fprintf(stderr, "serverSocket()\n"); exit(EXIT_FAILURE); }
@@ -151,20 +154,20 @@ int main(int argc, char **argv)
       int n;
       char buf[BUFSIZ];
 
-      if((n = select(fildes[IN] +1, &fds, NULL, NULL, &timeout)) < 0)
+      if((n = select(maxfds(fildes[R], fildes[W]) +1, NULL, &fds, NULL, &timeout)) < 0)
       	{ perror("select()"); exit(EXIT_FAILURE); }
 
-      else if(n > 0)
+      if(FD_ISSET(fildes[W], &fds))
       	{
+      	  puts("child sync");
       	  memset(buf, '\0', BUFSIZ);
-      	  read(fildes[IN], buf, BUFSIZ);
-      	  write(fildes[OUT], buf, BUFSIZ);
-      	  puts("child send");
+      	  read(fildes[R], buf, BUFSIZ);
+      	  write(fildes[W], buf, BUFSIZ);
       	}
 
       if((child_sockfd = accept(listen_sockfd, (struct sockaddr *)&addr, (socklen_t *)&len)) < 0)
 	{} //	{ perror("accept()"); exit(EXIT_FAILURE); }
-
+      
       else
 	{
 	  printf("accept:%d\n", child_sockfd);
@@ -174,7 +177,7 @@ int main(int argc, char **argv)
 	  if(pthread_detach(worker) < 0)
 	    { perror("pthread_detach()"); exit(EXIT_FAILURE); }
 	}
-
+      
       usleep(1);
     }
 
