@@ -26,28 +26,43 @@
 enum { IN = 0, OUT };
 
 int fildes[2];
+fd_set fds;
 
 void reply(void *fd)
 {
   int conn_fd = *((int *)fd), rsize;
   char buf[BUFSIZ];
+  struct timeval timeout;
+
+  timeout.tv_sec = 0;
+  timeout.tv_usec = 0;
 
   while(1)
     {
-      if((rsize = recv(conn_fd, buf, BUFSIZ, 0)) < 0)
-	{ perror("recv()"); exit(EXIT_FAILURE); }
-	  
-      else if(rsize == 0)
-	{ break; }
-	  
+      if(select(fildes[OUT], &fds, NULL, NULL, &timeout) > 0)
+	{
+	  read(fildes[OUT], buf, BUFSIZ);
+	  write(conn_fd, buf, BUFSIZ);
+	}
+
       else
 	{
-	  goodbyeReturn(buf);
-	  if(strcmp(buf, "exit") == 0)
+
+	  if((rsize = recv(conn_fd, buf, BUFSIZ, 0)) < 0)
+	    {} //	{ perror("recv()"); exit(EXIT_FAILURE); }
+	  
+	  else if(rsize == 0)
 	    { break; }
 	  
-	  write(conn_fd, "send", strlen("send"));
-	  write(fildes[OUT], buf, rsize);
+	  else
+	    {
+	      goodbyeReturn(buf);
+	      if(strcmp(buf, "exit") == 0)
+		{ break; }
+	      
+	      write(conn_fd, buf, rsize);
+	      write(fildes[OUT], buf, rsize);
+	    }
 	}
     }
   
@@ -105,9 +120,13 @@ int setNonBlocking(int *sockfd)
 
 int main(int argc, char **argv)
 {
-  int listen_sockfd;
-  pthread_t worker;
+  struct sockaddr_in addr;
   struct timeval timeout;
+  pthread_t worker;
+  int listen_sockfd, child_sockfd, len;
+
+  FD_ZERO(&fds);
+  FD_SET(fildes[IN], &fds);
 
   if (pipe(fildes) < 0) 
     { perror("pipe()"); exit(EXIT_FAILURE); }
@@ -121,8 +140,8 @@ int main(int argc, char **argv)
   if((listen_sockfd = serverSocket()) < 0)
     { fprintf(stderr, "serverSocket()\n"); exit(EXIT_FAILURE); }
 
-/*   if(setNonBlocking(&listen_sockfd) < 0) */
-/*     { fprintf(stderr, "setNonBlocking()\n"); exit(EXIT_FAILURE); } */
+  if(setNonBlocking(&listen_sockfd) < 0)
+    { fprintf(stderr, "setNonBlocking()\n"); exit(EXIT_FAILURE); }
 
   if(listen(listen_sockfd, SOMAXCONN) < 0)
     { perror("listen()"); exit(EXIT_FAILURE); }
@@ -131,17 +150,11 @@ int main(int argc, char **argv)
     {
       int n;
       char buf[BUFSIZ];
-      int child_sockfd;
-      struct sockaddr_in addr;
-      int len;
 
-      if((n = select(fildes[IN] +1, NULL, NULL, NULL, &timeout)) < 0)
+      if((n = select(fildes[IN] +1, &fds, NULL, NULL, &timeout)) < 0)
       	{ perror("select()"); exit(EXIT_FAILURE); }
 
-      else if(n == 0)
-	{ puts("timeout"); }
-
-      else
+      else if(n > 0)
       	{
       	  memset(buf, '\0', BUFSIZ);
       	  read(fildes[IN], buf, BUFSIZ);
@@ -150,11 +163,11 @@ int main(int argc, char **argv)
       	}
 
       if((child_sockfd = accept(listen_sockfd, (struct sockaddr *)&addr, (socklen_t *)&len)) < 0)
-	{ perror("accept()"); exit(EXIT_FAILURE); }
+	{} //	{ perror("accept()"); exit(EXIT_FAILURE); }
 
       else
 	{
-	  puts("accept");
+	  printf("accept:%d\n", child_sockfd);
 	  if(pthread_create(&worker, NULL, (void *)reply, (void *)&child_sockfd) != 0)
 	    { perror("pthread_create()"); exit(EXIT_FAILURE); }
 	  
