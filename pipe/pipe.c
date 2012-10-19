@@ -9,24 +9,12 @@
 #define LOCK -1
 #define UNLOCK 1
 #define getStatus(a) (a > 0) ? "UNLOCK" : "LOCK"
-#define CHILDNM 4
+#define CHILDNM 2
 
 /**
  * semaphore 
  */
 union semunc { int val; struct semid_ds *buf; unsigned short *array; } arg;
-void semLockToggle(int p_semid, int p_semnum, int p_op)
-{
-  struct sembuf sops[1];
-
-  sops[0].sem_num = p_semnum;
-  sops[0].sem_op = p_op;
-  sops[0].sem_flg = 0;
-
-  if(semop(p_semid, sops, 1) == -1)
-    { perror("semop()"); exit(EXIT_FAILURE); }
-}
-
 int semSetting()
 {
   int id;
@@ -47,6 +35,34 @@ int semClose(int id)
   if(semctl(id, 0, IPC_RMID, arg) == -1)
     { perror("IPC_RMID semctl()"); return -1; }
 
+  return 0;
+}
+
+#define setSemopStatus(a, b) (a == b) ? UNLOCK : LOCK
+int semLockEx(int semid, int id)
+{
+  int i;
+  for(i = 0; i < CHILDNM; i++)
+    {
+      struct sembuf sops[1];
+      sops[0].sem_num = i;
+      sops[0].sem_op = setSemopStatus(id, i);
+      sops[0].sem_flg = 0;
+      if(semop(semid, sops, 1) == -1)
+	{ perror("semLockAll semop()"); return -1; }
+    }
+  return 0;
+}
+
+int semUnlock(int semid, int semnum)
+{
+  struct sembuf sops[1];
+  sops[0].sem_num = semnum;
+  sops[0].sem_op = UNLOCK;
+  sops[0].sem_flg = 0;
+
+  if(semop(semid, sops, 1) == -1)
+    { perror("semUnlock semop()"); return -1; }
   return 0;
 }
 /* semaphore end */
@@ -71,7 +87,7 @@ int fifo()
  * fork
  */
 enum { R = 0, W };
-void child(int childnm, int semid)
+void child(int semid, int semnm)
 {
   int fifodes[2];
   int i;
@@ -80,73 +96,27 @@ void child(int childnm, int semid)
   fifodes[R] = open("fifo", O_RDONLY|O_NONBLOCK|O_CREAT);
   fifodes[W] = open("fifo", O_WRONLY|O_NONBLOCK|O_CREAT);
 
-  if(childnm == 0)
+  if(semnm == 0)
     {
-      for(i = 0; i < CHILDNM; i++)
-	{
-	  printf("process%d start\n", childnm);
-	  memset(buf, '\0', 255);
-	  sprintf(buf, "child:%d", getpid());
-	  write(fifodes[W], buf, 255);
-	
-	  if(i == 0)
-	    {
-	      printf("setting:%d, child:%d, status:%s\n", childnm, 2, getStatus(LOCK));
-	      printf("setting:%d, child:%d, status:%s\n", childnm, 1, getStatus(LOCK));
-	      printf("setting:%d, child:%d, status:%s\n", childnm, 0, getStatus(UNLOCK));
-	      printf("-------------------------------\n");
-	      semLockToggle(semid, 2, LOCK);
-	      semLockToggle(semid, 1, LOCK);
-	      semLockToggle(semid, 0, UNLOCK);
-	    }
-
-	  else if(i == 1)
-	    {
-	      printf("setting:%d, child:%d, status:%s\n", childnm, 2, getStatus(LOCK));
-	      printf("setting:%d, child:%d, status:%s\n", childnm, 1, getStatus(LOCK));
-	      printf("setting:%d, child:%d, status:%s\n", childnm, 0, getStatus(UNLOCK));
-	      printf("-------------------------------\n");
-	      semLockToggle(semid, 2, LOCK);
-	      semLockToggle(semid, 1, LOCK);
-	      semLockToggle(semid, 0, UNLOCK);
-	    }
-	}
+      printf("process%d start\n", semnm);
+      printf("process%d end\n", semnm);
+      semLockEx(semid, 1);
     }
 
-  if(childnm == 1)
+  else if(semnm == 1)
     {
-      printf("process%d start\n", childnm);
-      printf("setting:%d, child:%d, status:%s\n", childnm, 2, getStatus(LOCK));
-      printf("setting:%d, child:%d, status:%s\n", childnm, 1, getStatus(UNLOCK));
-      printf("setting:%d, child:%d, status:%s\n", childnm, 0, getStatus(LOCK));
-      printf("-------------------------------\n");
-      semLockToggle(semid, 2, UNLOCK);
-      semLockToggle(semid, 1, LOCK);
-      semLockToggle(semid, 0, LOCK);
-
-      printf("get message:");
-      read(fifodes[R], buf, 255);
-      printf("%s\n", buf);
+      semLockEx(semid, 0);
+      printf("process%d start\n", semnm);
+      printf("process%d end\n", semnm);
     }
 
-  if(childnm == 2)
+  else if(semnm == 2)
     {
-      printf("process%d start\n", childnm);
-      printf("setting:%d, child:%d, status:%s\n", childnm, 2, getStatus(UNLOCK));
-      printf("setting:%d, child:%d, status:%s\n", childnm, 1, getStatus(LOCK));
-      printf("setting:%d, child:%d, status:%s\n", childnm, 0, getStatus(LOCK));
-      printf("-------------------------------\n");
-      semLockToggle(semid, 2, LOCK);
-      semLockToggle(semid, 1, LOCK);
-      semLockToggle(semid, 0, UNLOCK);
-
-      printf("process%d start\n", childnm);
-      printf("get message:");
-      read(fifodes[R], buf, 255);
-      printf("%s\n", buf);
+      semLockEx(semid, 0);
+      printf("process%d start\n", semnm);
+      printf("process%d end\n", semnm);
     }
 
-  printf("process%d end\n", childnm +1);
   exit(EXIT_SUCCESS);
 }
 
@@ -176,7 +146,7 @@ int main(int argc, char** argv)
 	}
 
       else if(pid == 0)
-	{ child(i, semid); }
+	{ child(semid, i); }
 
       else
 	{
