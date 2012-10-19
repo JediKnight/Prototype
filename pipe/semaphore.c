@@ -5,6 +5,8 @@
 #include <sys/sem.h>
 #define LOCK -1
 #define UNLOCK 1
+#define CHILD1 0
+#define CHILD2 1
 
 void MySemop(int p_semid, int p_semnum, int p_op)
 {
@@ -41,8 +43,8 @@ void child1(int semid)
     }
   fclose(fp);
   
-  MySemop(semid, 1, UNLOCK);
-  MySemop(semid, 0, LOCK);
+  MySemop(semid, CHILD2, UNLOCK);
+  MySemop(semid, CHILD1, LOCK);
   
   printf("子プロセス１終了\n");
   exit(EXIT_SUCCESS);
@@ -53,8 +55,8 @@ void child2(int semid)
   char buff[1024];
   printf("子プロセス２開始\n");
   
-  MySemop(semid, 1, LOCK);
-  MySemop(semid, 0, UNLOCK);
+  MySemop(semid, CHILD2, LOCK);
+  MySemop(semid, CHILD1, UNLOCK);
   
   if((fp = fopen(file, "r")) == NULL)
     {
