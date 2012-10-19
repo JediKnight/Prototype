@@ -9,7 +9,6 @@
 #define LOCK -1
 #define UNLOCK 1
 #define getStatus(a) (a > 0) ? "UNLOCK" : "LOCK"
-#define getChild(a) (a > 0) ? 2 : 1
 #define CHILDNM 4
 
 /**
@@ -81,50 +80,67 @@ void child(int childnm, int semid)
   fifodes[R] = open("fifo", O_RDONLY|O_NONBLOCK|O_CREAT);
   fifodes[W] = open("fifo", O_WRONLY|O_NONBLOCK|O_CREAT);
 
-  memset(buf, '\0', 255);
-
   if(childnm == 0)
     {
-      printf("process%d start\n", childnm +1);
-      puts("send message");
-      sprintf(buf, "child:%d", getpid());
-      write(fifodes[W], buf, 255);
+      for(i = 0; i < CHILDNM; i++)
+	{
+	  printf("process%d start\n", childnm);
+	  memset(buf, '\0', 255);
+	  sprintf(buf, "child:%d", getpid());
+	  write(fifodes[W], buf, 255);
+	
+	  if(i == 0)
+	    {
+	      printf("setting:%d, child:%d, status:%s\n", childnm, 2, getStatus(LOCK));
+	      printf("setting:%d, child:%d, status:%s\n", childnm, 1, getStatus(LOCK));
+	      printf("setting:%d, child:%d, status:%s\n", childnm, 0, getStatus(UNLOCK));
+	      printf("-------------------------------\n");
+	      semLockToggle(semid, 2, LOCK);
+	      semLockToggle(semid, 1, LOCK);
+	      semLockToggle(semid, 0, UNLOCK);
+	    }
 
-      semLockToggle(semid, 2, LOCK);
-      semLockToggle(semid, 1, LOCK);
-      semLockToggle(semid, 0, UNLOCK);
-      printf("child:%d, status:%s\n", getChild(2), getStatus(LOCK));
-      printf("child:%d, status:%s\n", getChild(1), getStatus(LOCK));
-      printf("child:%d, status:%s\n", getChild(0), getStatus(UNLOCK));
+	  else if(i == 1)
+	    {
+	      printf("setting:%d, child:%d, status:%s\n", childnm, 2, getStatus(LOCK));
+	      printf("setting:%d, child:%d, status:%s\n", childnm, 1, getStatus(LOCK));
+	      printf("setting:%d, child:%d, status:%s\n", childnm, 0, getStatus(UNLOCK));
+	      printf("-------------------------------\n");
+	      semLockToggle(semid, 2, LOCK);
+	      semLockToggle(semid, 1, LOCK);
+	      semLockToggle(semid, 0, UNLOCK);
+	    }
+	}
     }
 
   if(childnm == 1)
     {
-      printf("process%d start\n", childnm +1);
-
-      semLockToggle(semid, 2, LOCK);
-      semLockToggle(semid, 1, UNLOCK);
+      printf("process%d start\n", childnm);
+      printf("setting:%d, child:%d, status:%s\n", childnm, 2, getStatus(LOCK));
+      printf("setting:%d, child:%d, status:%s\n", childnm, 1, getStatus(UNLOCK));
+      printf("setting:%d, child:%d, status:%s\n", childnm, 0, getStatus(LOCK));
+      printf("-------------------------------\n");
+      semLockToggle(semid, 2, UNLOCK);
+      semLockToggle(semid, 1, LOCK);
       semLockToggle(semid, 0, LOCK);
-      printf("child:%d, status:%s\n", getChild(2), getStatus(LOCK));
-      printf("child:%d, status:%s\n", getChild(1), getStatus(UNLOCK));
-      printf("child:%d, status:%s\n", getChild(0), getStatus(LOCK));
 
       printf("get message:");
       read(fifodes[R], buf, 255);
       printf("%s\n", buf);
     }
 
-  if(childnm == 3)
+  if(childnm == 2)
     {
-      printf("process%d start\n", childnm +1);
-
-      semLockToggle(semid, 2, UNLOCK);
+      printf("process%d start\n", childnm);
+      printf("setting:%d, child:%d, status:%s\n", childnm, 2, getStatus(UNLOCK));
+      printf("setting:%d, child:%d, status:%s\n", childnm, 1, getStatus(LOCK));
+      printf("setting:%d, child:%d, status:%s\n", childnm, 0, getStatus(LOCK));
+      printf("-------------------------------\n");
+      semLockToggle(semid, 2, LOCK);
       semLockToggle(semid, 1, LOCK);
-      semLockToggle(semid, 0, LOCK);
-      printf("child:%d, status:%s\n", getChild(2), getStatus(UNLOCK));
-      printf("child:%d, status:%s\n", getChild(1), getStatus(LOCK));
-      printf("child:%d, status:%s\n", getChild(0), getStatus(LOCK));
+      semLockToggle(semid, 0, UNLOCK);
 
+      printf("process%d start\n", childnm);
       printf("get message:");
       read(fifodes[R], buf, 255);
       printf("%s\n", buf);
