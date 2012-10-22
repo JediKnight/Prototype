@@ -9,7 +9,7 @@
 #define LOCK -1
 #define UNLOCK 1
 #define getStatus(a) (a > 0) ? "UNLOCK" : "LOCK"
-#define CHILDNM 2
+#define CHILDNM 3
 
 /**
  * semaphore 
@@ -49,74 +49,69 @@ int semLockEx(int semid, int id)
       sops[0].sem_op = setSemopStatus(id, i);
       sops[0].sem_flg = 0;
       if(semop(semid, sops, 1) == -1)
-	{ perror("semLockAll semop()"); return -1; }
+	{ perror("semLockEx semop()"); return -1; }
     }
   return 0;
 }
 
-int semUnlock(int semid, int semnum)
+int semUnlockEx(int semid)
 {
-  struct sembuf sops[1];
-  sops[0].sem_num = semnum;
-  sops[0].sem_op = UNLOCK;
-  sops[0].sem_flg = 0;
-
-  if(semop(semid, sops, 1) == -1)
-    { perror("semUnlock semop()"); return -1; }
+  int i;
+  for(i = 0; i < CHILDNM; i++)
+    {
+      struct sembuf sops[1];
+      sops[0].sem_num = i;
+      sops[0].sem_op = UNLOCK;
+      sops[0].sem_flg = 0;
+      if(semop(semid, sops, 1) == -1)
+	{ perror("semUnlockEx semop()"); return -1; }
+    }
   return 0;
 }
 /* semaphore end */
 
-
-/**
- * fifo
- */
-#define FIFO_PATH "fifo"
-#define PERMITTION 0777
-int fifo()
+int distChildProcMesg(int semid, char *mesg)
 {
-  int f;
-  mkfifo(FIFO_PATH, PERMITTION);
-  f = open(FIFO_PATH, O_RDWR|O_NONBLOCK|O_CREAT);
-  return f;
+  int fifodes;
+  fifodes = open("fifo", O_WRONLY|O_NONBLOCK|O_CREAT);
+  semLockEx(semid, 0);
+  write(fifodes, mesg, strlen(mesg) +1);
+  semUnlockEx(semid);
 }
-/* fifo end */
-
 
 /**
  * fork
  */
-enum { R = 0, W };
 void child(int semid, int semnm)
 {
-  int fifodes[2];
+  int fifodes;
   int i;
-  char buf[255];
 
-  fifodes[R] = open("fifo", O_RDONLY|O_NONBLOCK|O_CREAT);
-  fifodes[W] = open("fifo", O_WRONLY|O_NONBLOCK|O_CREAT);
+  fifodes = open("fifo", O_RDONLY|O_NONBLOCK|O_CREAT);
 
+  printf("process%d start\n", semnm);
   if(semnm == 0)
     {
-      printf("process%d start\n", semnm);
-      printf("process%d end\n", semnm);
-      semLockEx(semid, 1);
+      distChildProcMesg(semid, "child:0 messages");
     }
 
   else if(semnm == 1)
     {
-      semLockEx(semid, 0);
-      printf("process%d start\n", semnm);
-      printf("process%d end\n", semnm);
+      char buf[255];
+      memset(buf, '\0', 255);
+      read(fifodes, buf, 255);
+      printf("%s\n", buf);
     }
 
   else if(semnm == 2)
     {
-      semLockEx(semid, 0);
-      printf("process%d start\n", semnm);
-      printf("process%d end\n", semnm);
+      char buf[255];
+      memset(buf, '\0', 255);
+      read(fifodes, buf, 255);
+      printf("%s\n", buf);
     }
-
+  
+  printf("process%d end\n", semnm);
   exit(EXIT_SUCCESS);
 }
 
@@ -133,7 +128,6 @@ int main(int argc, char** argv)
 {
   pid_t pid;
   int semid, i;
-  char buf[255];
 
   if((semid = semSetting()) == -1)
     { fprintf(stderr, "semSetting()"); exit(EXIT_FAILURE); }
@@ -141,19 +135,16 @@ int main(int argc, char** argv)
   for(i = 0; i < CHILDNM; i++)
     {
       if((pid = fork()) == -1)
-	{
-	  return -1;
-	}
+	{ return -1; }
 
       else if(pid == 0)
 	{ child(semid, i); }
 
       else
-	{
-	  parent(i);
-	}
+	{ parent(i); }
     }
 
   semClose(semid);
+
   return 0;
 }
