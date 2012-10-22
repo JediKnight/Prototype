@@ -7,7 +7,7 @@
 #include <signal.h>		/* kill() */
 #include <unistd.h>		/* close() */
 
-#include <curses.h>
+//#include <curses.h>
 
 #undef IPADDR
 #define IPADDR "127.0.0.1"
@@ -48,6 +48,7 @@ int closeSocket(int sockfd)
 void sendRecvLoop(int sockfd)
 {
   char buf[BUFSIZ];
+
   for(;;)
     {
       char *p;
@@ -55,7 +56,15 @@ void sendRecvLoop(int sockfd)
       recv(sockfd, buf, BUFSIZ, 0);
       if((p = strchr(buf, '\n') -1) != NULL)
 	*p = '\0';
-      printw("%s\n", buf);
+
+      if(kill(getppid(), SIGCONT) == -1)
+	{ perror("kill SIGCONT"); exit(EXIT_FAILURE); }
+
+      printf("ppid:%d, %s\n", getppid(), buf);
+
+      if(kill(getppid(), SIGSTOP) == -1)
+	{ perror("kill SIGSTOP"); exit(EXIT_FAILURE); }
+
     }
 }
 
@@ -64,7 +73,8 @@ void child()
   int sockfd, client_sockfd, len, rsize;
   struct sockaddr_in addr;
 
-  kill(getppid(), SIGSTOP);
+  if(kill(getppid(), SIGSTOP) == -1)
+    { perror("kill"); exit(EXIT_FAILURE); }
 
   if((sockfd = serverSocket()) == -1)
     { fprintf(stderr, "serverSocket"); exit(EXIT_FAILURE); }
@@ -81,9 +91,7 @@ void child()
       exit(EXIT_FAILURE);
       
     default:
-      kill(getppid(), SIGCONT);
       sendRecvLoop(client_sockfd);
-      kill(getppid(), SIGSTOP);
       break;
     }
 
@@ -94,8 +102,8 @@ void child()
 
 void parent()
 {
-  if(initscr() == NULL)
-    { perror("initscr"); exit(EXIT_FAILURE); }
+  /* if(initscr() == NULL) */
+  /*   { perror("initscr"); exit(EXIT_FAILURE); } */
 
   wait(NULL);
   printf("end\n");
