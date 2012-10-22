@@ -89,10 +89,10 @@ int serverSocket()
   len = sizeof(address);
 
   opt = 1;
-  if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, (socklen_t)sizeof(opt)) < 0)
+  if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, (socklen_t)sizeof(opt)) == -1)
     { perror("setsockopt()"); return -1; }
 
-  if(bind(sockfd, (const struct sockaddr *)&address, (socklen_t)len) < 0)
+  if(bind(sockfd, (const struct sockaddr *)&address, (socklen_t)len) == -1)
     { perror("bind()"); return -1; }
 
   return sockfd;
