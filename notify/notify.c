@@ -6,8 +6,7 @@
 #include <string.h>		/* bzero() */
 #include <signal.h>		/* kill() */
 #include <unistd.h>		/* close() */
-
-//#include <curses.h>
+#include <ncurses.h>		/* initscr(), printw(), enwin() */
 
 #undef IPADDR
 #define IPADDR "127.0.0.1"
@@ -45,36 +44,55 @@ int closeSocket(int sockfd)
   return 0;
 }
 
-void sendRecvLoop(int sockfd)
+int initCurses()
 {
-  char buf[BUFSIZ];
+  initscr();
+  noecho();
+  nocbreak();
+  start_color();
+  use_default_colors();
+  init_pair(1, COLOR_WHITE, COLOR_BLACK);
+  init_pair(2, COLOR_BLACK, COLOR_WHITE);
+  return 0;
+}
+
+#define LINE 2
+void mesgWnd(int sockfd)
+{
+  WINDOW *wnd;
+  int max_x, max_y, begin_x, begin_y, ncols, nlines;
+
+  initCurses();
+
+  getmaxyx(stdscr, max_y, max_x);
+  begin_y = 0;
+  begin_x = 0;
+  ncols = 35;
+  nlines = max_y;
+
+  wnd = newwin(nlines, ncols, begin_y, begin_x);
+  //  overlay(stdscr, wnd);
+  box(wnd, ACS_VLINE, ACS_HLINE);
+  //  wborder(wnd, '|', '|', '-', '', '+', '+', '+', '+');
+  wbkgd(wnd, COLOR_PAIR(2));
 
   for(;;)
     {
-      char *p;
+      char buf[BUFSIZ], *p;
       memset(buf, '\0', BUFSIZ);
       recv(sockfd, buf, BUFSIZ, 0);
-      if((p = strchr(buf, '\n') -1) != NULL)
-	*p = '\0';
-
-      if(kill(getppid(), SIGCONT) == -1)
-	{ perror("kill SIGCONT"); exit(EXIT_FAILURE); }
-
-      printf("ppid:%d, %s\n", getppid(), buf);
-
-      if(kill(getppid(), SIGSTOP) == -1)
-	{ perror("kill SIGSTOP"); exit(EXIT_FAILURE); }
-
+      if((p = strchr(buf, '\n') -1) != NULL) *p = '\0';
+      if(strcmp(buf, "exit") == 0) break;
+      wprintw(wnd, "%s\n", buf);
+      wrefresh(wnd);
     }
+  endwin();
 }
 
 void child()
 {
   int sockfd, client_sockfd, len, rsize;
   struct sockaddr_in addr;
-
-  if(kill(getppid(), SIGSTOP) == -1)
-    { perror("kill"); exit(EXIT_FAILURE); }
 
   if((sockfd = serverSocket()) == -1)
     { fprintf(stderr, "serverSocket"); exit(EXIT_FAILURE); }
@@ -91,22 +109,20 @@ void child()
       exit(EXIT_FAILURE);
       
     default:
-      sendRecvLoop(client_sockfd);
+      mesgWnd(client_sockfd);
       break;
     }
 
   closeSocket(sockfd);
   closeSocket(client_sockfd);
+
+  puts("process end");
   exit(EXIT_SUCCESS);
 }
 
 void parent()
 {
-  /* if(initscr() == NULL) */
-  /*   { perror("initscr"); exit(EXIT_FAILURE); } */
-
-  wait(NULL);
-  printf("end\n");
+  puts("process start");
 }
 
 int main()
