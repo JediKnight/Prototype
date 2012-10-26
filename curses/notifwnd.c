@@ -23,12 +23,11 @@ int main()
   getmaxyx(stdscr, maxY, maxX);
   pminrow = 0;
   pmincol = 0;
-  sminrow = 10;
-  smincol = 10;
-  smaxrow = 150 - sminrow;
-  smaxcol = 150 * 2 - smincol;
-
-  pad = newpad(30, 30 * 2);
+  sminrow = 0;
+  smincol = 0;
+  smaxrow = maxY;
+  smaxcol = 25;
+  pad = newpad(maxY, 30);
   wbkgd(pad, COLOR_PAIR(1));
 
   prefresh(pad, pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol);
