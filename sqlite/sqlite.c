@@ -7,22 +7,40 @@ sqlite3 *openSqlite(char *dbname)
   sqlite3 *db;
   if(sqlite3_open(dbname, &db) != SQLITE_OK)
     {
-      sqlite3_errmsg(&db);
+      sqlite3_errmsg(db);
       return NULL;
     }
   return db;
 }
 
+void callback()
+{
+}
+
 int runSql(sqlite3 *db, char *sql)
 {
-  char *err;
-  if(sqlite3_exec(db, "BEGIN", NULL, NULL, &err) != SQLITE_OK)
+  char *errmesg;
+  if(sqlite3_exec(db, "BEGIN", NULL, NULL, &errmesg) != SQLITE_OK)
     {
-      sqlite3_errmsg(&db);
+      sqlite3_errmsg(db);
+      fprintf(stderr, "%s\n", errmesg);
       return -1;
     }
 
-  
+  if(sqlite3_exec(db, sql, NULL, NULL, &errmesg) != SQLITE_OK)
+    {
+      sqlite3_errmsg(db);
+      fprintf(stderr, "%s\n", errmesg);
+      return -1;
+    }
+
+  if(sqlite3_exec(db, "COMMIT", NULL, NULL, &errmesg) != SQLITE_OK)
+    {
+      sqlite3_errmsg(db);
+      fprintf(stderr, "%s\n", errmesg);
+      return -1;
+    }
+  return 0;
 }
 
 int main(int argc, char **argv)
@@ -37,16 +55,9 @@ int main(int argc, char **argv)
       exit(EXIT_FAILURE);
     }
 
-  /* (void)sqlite3_exec(db, "BEGIN", NULL, NULL, &errmsg);  */
-  
-  /* sql = sqlite3_mprintf("select c.displayname, m.from_dispname, m.body_xml from Messages as m inner join Conversations as c on m.convo_id = c.id where author not like '%s' and body_xml like '%%%s%%' and timestamp > %d order by timestamp", pconf->skype.user, key, (int)past); */
+  sql = sqlite3_mprintf("select friendlyname from Chats where name not like '%%$hoge%%' friendlyname like '%%hoge%%'");
+  printf("%s\n", sql);
   /* (void)sqlite3_exec(db, sql, callback, NULL, &errmsg); */
-  
-  /* sql = sqlite3_mprintf("select friendlyname from Chats where name not like '%%$%s%%' friendlyname like '%%%s%%'", pconf->skype.user, key); */
-  /* (void)sqlite3_exec(db, sql, callback, NULL, &errmsg); */
-  
-  /* (void)sqlite3_exec(db, "COMMIT", NULL, NULL, &errmsg);  */
-
   sqlite3_close(db);
   
   return 0;
