@@ -9,51 +9,74 @@
 #include <ncurses.h>		/* initscr(), printw(), enwin() */
 #include "sc_socket.h"
 
+#undef IPADDR
+#define IPADDR "127.0.0.1"
+#undef PORTNM
+#define PORTNM 19860
+#define WNDWIDTH 35
+
 int initCurses()
 {
-  initscr();
-  noecho();
-  nocbreak();
-  start_color();
-  use_default_colors();
-  init_pair(1, COLOR_WHITE, COLOR_BLACK);
-  init_pair(2, COLOR_BLACK, COLOR_WHITE);
+  return 0;
+}
+
+int resizeWnd()
+{
   return 0;
 }
 
 #define LINE 2
 void mesgWnd(int sockfd)
 {
-  WINDOW *wnd;
-  int max_x, max_y, begin_x, begin_y, ncols, nlines;
+  WINDOW *wnd, *pad;
+  int max_y, max_x, pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol;
 
-  initCurses();
-
+  initscr();
+  noecho();
+  nocbreak();
+  start_color();
+  use_default_colors();
+  init_pair(1, COLOR_WHITE, COLOR_BLUE);
+  init_pair(2, COLOR_BLACK, COLOR_WHITE);
   getmaxyx(stdscr, max_y, max_x);
-  begin_y = 0;
-  begin_x = 0;
-  ncols = 35;
-  nlines = max_y;
 
-  wnd = newwin(nlines, ncols, begin_y, begin_x);
-  wbkgd(wnd, COLOR_PAIR(2));
+  wnd = newwin(0, 0, max_y, max_x - WNDWIDTH);
+  pad = newpad(max_y, WNDWIDTH);
+
+  wbkgd(wnd, COLOR_PAIR(1));
+  wbkgd(pad, COLOR_PAIR(2));
+
+  pminrow = pmincol = 0;
+  sminrow = 0;
+  smincol = max_x;
+  smaxrow = max_y;
+  smaxcol = max_x + WNDWIDTH;
+
+  wprintw(wnd, "mainwindow> ");
+  wrefresh(wnd);
+  prefresh(pad, pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol);
 
   for(;;)
     {
       char buf[BUFSIZ], *p;
       recvdata(sockfd, buf, BUFSIZ);
       if(strcmp(buf, "exit") == 0) break;
-      wprintw(wnd, "%s\n", buf);
+      wprintw(pad, "%s\n", buf);
       wrefresh(wnd);
+      prefresh(pad, pminrow, pmincol, sminrow, smincol - WNDWIDTH - 1, smaxrow, smaxcol - WNDWIDTH - 1);
+      sleep(3);
+      prefresh(pad, pminrow, pmincol, sminrow, smincol, smaxrow, smaxcol);
     }
   endwin();
+  delwin(wnd);
+  delwin(pad);
 }
 
 void child()
 {
   int server_sockfd, client_sockfd;
 
-  if((server_sockfd = serverSocket()) == -1)
+  if((server_sockfd = serverSocket(IPADDR, PORTNM)) == -1)
     { fprintf(stderr, "serverSocket"); exit(EXIT_FAILURE); }
 
   if(listen(server_sockfd, SOMAXCONN) == -1)
@@ -67,13 +90,13 @@ void child()
   closeSocket(server_sockfd);
   closeSocket(client_sockfd);
 
-  puts("process end");
   exit(EXIT_SUCCESS);
 }
 
 void parent()
 {
-  puts("process start");
+  wait(NULL);
+  puts("process end");
 }
 
 int main()

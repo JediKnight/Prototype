@@ -1,22 +1,40 @@
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
 
-void variablearg(int argnm, ...)
+void print(const char *format, ...)
 {
+  const char *p, *tmp = format;
   va_list args;
-  int i, val;
-  va_start(args, argnm);
-  for(i = 0; i < argnm; i++)
+
+  va_start(args, format);
+
+  while((p = strchr(tmp, '%')) != NULL)
     {
-      val = va_arg(args, int);
-      printf("%d ", val);
+      ++p;
+      switch(*p)
+	{
+	case 'd':
+	  printf("%d", va_arg(args, int));
+	  break;
+
+	case 's':
+	  printf("%s", va_arg(args, const char *));
+	  break;
+
+	default:
+	  printf("%s", tmp);
+	  break;
+	}
+      tmp = p;
     }
-  printf("\n");
+
   va_end(args);
 }
 
-int main()
+int main(void)
 {
-  variablearg(3, 1, 2, 3);
+  print("%dprint%s", 10, "hoge");
+
   return 0;
 }
