@@ -32,34 +32,16 @@ struct _list *getNewList()
   return p;
 }
 
-struct _list *addList(char *fn, char *ln, int ag, struct _list *prev)
-{
-  struct _list *p, *next;
-
-  p = getNewList();
-  next = getNewList();
-
-  strncpy(p->fname, fn, BUFSIZ);
-  strncpy(p->lname, ln, BUFSIZ);
-  p->age = ag;
-
-  p->prev = prev;
-  p->next = next;
-  prev->next = p;
-  next->prev = p;
-  return p;
-}
-
 struct _list *seekHead(struct _list *list)
 {
   for(; list->prev != NULL; list = list->prev);
-  return list->next;
+  return list;
 }
 
 struct _list *seekTail(struct _list *list)
 {
   for(; list->next != NULL; list = list->next);
-  return list->prev;
+  return list;
 }
 
 struct _list *seekIndex(struct _list *list, int index)
@@ -67,6 +49,43 @@ struct _list *seekIndex(struct _list *list, int index)
   int i;
   list = seekHead(list);
   for(i = 0; i < index && list->next != NULL; list = list->next, i++);
+  return list;
+}
+
+struct _list *addList(struct _list *prev, char *fn, char *ln, int ag)
+{
+  struct _list *new;
+
+  new = getNewList();
+
+  strncpy(new->fname, fn, BUFSIZ);
+  strncpy(new->lname, ln, BUFSIZ);
+  new->age = ag;
+
+  new->prev = prev;
+  new->next = NULL;
+  prev->next = new;
+  return new;
+}
+
+struct _list *insertList(struct _list *list, int index, char *fn, char *ln, int ag)
+{
+  struct _list *p;
+
+  p = getNewList();
+  list = seekIndex(list, index);
+
+  strncpy(p->fname, fn, BUFSIZ);
+  strncpy(p->lname, ln, BUFSIZ);
+  p->age = ag;
+
+  p->prev = list->prev;
+  p->next = list;
+  list->prev->next = p;
+  list->prev = p;
+
+  list = seekTail(list);
+
   return list;
 }
 
@@ -83,7 +102,7 @@ void dispAll(struct _list *list)
   int i;
   list = seekHead(list);
   for(i = 0; list->next != NULL; list = list->next, i++)
-    printf("index %d   :%s, %d\n", i, list->fname, list->age);
+    printf("index %d   :%s, %d\n", i, list->next->fname, list->next->age);
 }
 
 void freeList(struct _list *list)
@@ -96,24 +115,26 @@ void freeList(struct _list *list)
 int main()
 {
   struct _list *list;
+  char fn[BUFSIZ], ln[BUFSIZ], ag[BUFSIZ];
   int i;
 
   list = getNewList();
 
   for(i = 0;i < 3; i++)
     {
-      char fn[BUFSIZ], ln[BUFSIZ], ag[BUFSIZ];
-
       printf("名前を入力> ");
+      clear(fn);
       getChar(fn);
 
       /* printf("苗字を入力> "); */
+      /* clear(ln); */
       /* getChar(ln); */
 
       printf("年齢を入力> ");
+      clear(ag);
       getChar(ag);
 
-      list = addList(fn, ln, atoi(ag), list);
+      list = addList(list, fn, ln, atoi(ag));
     }
 
   list = seekHead(list);
@@ -124,6 +145,18 @@ int main()
 
   list = seekIndex(list, 1);
   printf("seekIndex :%s, %d\n", list->fname, list->age);
+
+  dispAll(list);
+
+  printf("インサートする名前を入力> ");
+  clear(fn);
+  getChar(fn);
+
+  printf("インサートする年齢を入力> ");
+  clear(ag);
+  getChar(ag);
+
+  list = insertList(list, 2, fn, ln, atoi(ag));
 
   dispAll(list);
 
